@@ -37,12 +37,16 @@ async function loadPolls() {
     clearPolls(); // Clear polls before loading
 
     const pollsContainer = document.getElementById('pollsContainer');
-    const pollsSnapshot = await db.collection('polls').get();
-    pollsSnapshot.forEach(doc => {
-        const pollData = doc.data();
-        const pollCard = createPollCard(doc.id, pollData);
-        pollsContainer.appendChild(pollCard);
-    });
+    try {
+        const pollsSnapshot = await db.collection('polls').get();
+        pollsSnapshot.forEach(doc => {
+            const pollData = doc.data();
+            const pollCard = createPollCard(doc.id, pollData);
+            pollsContainer.appendChild(pollCard);
+        });
+    } catch (error) {
+        console.error("Error loading polls:", error);
+    }
 }
 
 function clearPolls() {
@@ -69,36 +73,62 @@ function createPollCard(id, data) {
 // Voting function
 async function vote(pollId, optionKey) {
     const user = auth.currentUser;
+    if (!user) {
+        console.error("User not authenticated");
+        return;
+    }
+
     const pollRef = db.collection('polls').doc(pollId);
 
-    // Update vote: remove user from all options and add to the selected option
-    const pollDoc = await pollRef.get();
-    const pollData = pollDoc.data();
-
-    for (const key in pollData.options) {
-        if (pollData.options[key].includes(user.uid)) {
-            await pollRef.update({
-                [`options.${key}`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
-            });
+    try {
+        const pollDoc = await pollRef.get();
+        if (!pollDoc.exists) {
+            console.error("Poll not found");
+            return;
         }
-    }
-    await pollRef.update({
-        [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
-    });
+        const pollData = pollDoc.data();
 
-    updatePollProgress(pollId); // Update progress display after voting
+        // Remove user from all options first
+        const updatePromises = Object.keys(pollData.options).map(async key => {
+            if (pollData.options[key].includes(user.uid)) {
+                return pollRef.update({
+                    [`options.${key}`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
+                });
+            }
+        });
+        await Promise.all(updatePromises);
+
+        // Add user to the selected option
+        await pollRef.update({
+            [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
+        });
+
+        updatePollProgress(pollId); // Update progress display after voting
+    } catch (error) {
+        console.error("Error voting:", error);
+    }
 }
 
 // Function to update poll progress
 async function updatePollProgress(pollId) {
-    const pollDoc = await db.collection('polls').doc(pollId).get();
-    const pollData = pollDoc.data();
+    try {
+        const pollDoc = await db.collection('polls').doc(pollId).get();
+        if (!pollDoc.exists) {
+            console.error("Poll not found");
+            return;
+        }
+        const pollData = pollDoc.data();
+        const totalVotes = Object.values(pollData.options).reduce((sum, voters) => sum + voters.length, 0);
 
-    const totalVotes = Object.values(pollData.options).reduce((sum, voters) => sum + voters.length, 0);
-
-    for (const [key, voters] of Object.entries(pollData.options)) {
-        const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
-        document.getElementById(`progress-${pollId}-${key}`).innerText = `${percentage}%`;
+        for (const [key, voters] of Object.entries(pollData.options)) {
+            const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
+            const progressElement = document.getElementById(`progress-${pollId}-${key}`);
+            if (progressElement) {
+                progressElement.innerText = `${percentage}%`;
+            }
+        }
+    } catch (error) {
+        console.error("Error updating poll progress:", error);
     }
 }
 
