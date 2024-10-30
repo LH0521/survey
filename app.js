@@ -69,30 +69,32 @@ function createPollCard(id, data) {
 async function vote(pollId, optionIndex) {
     const user = auth.currentUser;
     const userVoteRef = db.collection('polls').doc(pollId).collection('votes').doc(user.uid);
+    const pollRef = db.collection('polls').doc(pollId);
 
     const previousVote = await userVoteRef.get();
     if (previousVote.exists && previousVote.data().optionIndex !== optionIndex) {
-        await userVoteRef.update({ optionIndex });
-    } else if (!previousVote.exists) {
-        await userVoteRef.set({ optionIndex });
+        const previousIndex = previousVote.data().optionIndex;
+        await pollRef.update({
+            [`options.${previousIndex}.voters`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
+        });
     }
+
+    await userVoteRef.set({ optionIndex });
+    await pollRef.update({
+        [`options.${optionIndex}.voters`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
+    });
 
     updatePollProgress(pollId);
 }
 
 async function updatePollProgress(pollId) {
-    const votesSnapshot = await db.collection('polls').doc(pollId).collection('votes').get();
-    const totalVotes = votesSnapshot.size;
-    const optionCounts = {};
+    const pollDoc = await db.collection('polls').doc(pollId).get();
+    const pollData = pollDoc.data();
 
-    votesSnapshot.forEach(doc => {
-        const optionIndex = doc.data().optionIndex;
-        optionCounts[optionIndex] = (optionCounts[optionIndex] || 0) + 1;
-    });
+    const totalVotes = pollData.options.reduce((sum, option) => sum + (option.voters ? option.voters.length : 0), 0);
 
-    const pollData = (await db.collection('polls').doc(pollId).get()).data();
-    pollData.options.forEach((_, index) => {
-        const count = optionCounts[index] || 0;
+    pollData.options.forEach((option, index) => {
+        const count = option.voters ? option.voters.length : 0;
         const percentage = totalVotes ? (count / totalVotes * 100).toFixed(0) : 0;
         document.getElementById(`progress-${pollId}-${index}`).innerText = `${percentage}%`;
     });
