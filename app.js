@@ -10,15 +10,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-document.getElementById('loginBtn').onclick = () => {
-    const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithRedirect(provider);
-};
-
-document.getElementById('logoutBtn').onclick = () => {
-    auth.signOut().then(showLandingPage);
-};
-
+// Authentication listener
 auth.onAuthStateChanged(user => {
     if (user) {
         showPollsPage();
@@ -29,6 +21,7 @@ auth.onAuthStateChanged(user => {
     }
 });
 
+// Display functions
 function showLandingPage() {
     document.getElementById('landingPage').style.display = 'block';
     document.getElementById('pollsPage').style.display = 'none';
@@ -39,8 +32,9 @@ function showPollsPage() {
     document.getElementById('pollsPage').style.display = 'block';
 }
 
+// Load polls and clear polls functions
 async function loadPolls() {
-    clearPolls();
+    clearPolls(); // Clear polls before loading
 
     const pollsContainer = document.getElementById('pollsContainer');
     const pollsSnapshot = await db.collection('polls').get();
@@ -55,29 +49,29 @@ function clearPolls() {
     document.getElementById('pollsContainer').innerHTML = '';
 }
 
+// Create poll card
 function createPollCard(id, data) {
     const card = document.createElement('div');
     card.classList.add('card', 'mb-4');
     card.innerHTML = `
         <div class="card-body">
             <h5 class="card-title">${data.question}</h5>
-            ${Object.keys(data.options).map((optionKey) => `
+            ${Object.keys(data.options).map(optionKey => `
                 <button class="btn btn-outline-primary w-100 my-1" onclick="vote('${id}', '${optionKey}')">
                     ${optionKey} <span id="progress-${id}-${optionKey}">0%</span>
                 </button>
             `).join('')}
-            <button class="btn btn-secondary w-100 mt-3" data-bs-toggle="modal" data-bs-target="#pollDetailModal" onclick="showPollDetails('${id}')">
-                Poll Details
-            </button>
         </div>
     `;
     return card;
 }
 
+// Voting function
 async function vote(pollId, optionKey) {
     const user = auth.currentUser;
     const pollRef = db.collection('polls').doc(pollId);
 
+    // Update vote: remove user from all options and add to the selected option
     const pollDoc = await pollRef.get();
     const pollData = pollDoc.data();
 
@@ -88,15 +82,14 @@ async function vote(pollId, optionKey) {
             });
         }
     }
-
     await pollRef.update({
         [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
     });
 
-    updatePollProgress(pollId);
+    updatePollProgress(pollId); // Update progress display after voting
 }
 
-
+// Function to update poll progress
 async function updatePollProgress(pollId) {
     const pollDoc = await db.collection('polls').doc(pollId).get();
     const pollData = pollDoc.data();
@@ -109,23 +102,12 @@ async function updatePollProgress(pollId) {
     }
 }
 
+// Login and logout functionality
+document.getElementById('loginBtn').onclick = () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(error => console.error("Login failed:", error));
+};
 
-async function showPollDetails(pollId) {
-    const pollDetails = document.getElementById('pollDetails');
-    pollDetails.innerHTML = '';
-
-    const votesSnapshot = await db.collection('polls').doc(pollId).collection('votes').get();
-    const optionCounts = {};
-    const userNames = {};
-
-    votesSnapshot.forEach(doc => {
-        const { optionIndex } = doc.data();
-        optionCounts[optionIndex] = (optionCounts[optionIndex] || 0) + 1;
-        userNames[optionIndex] = (userNames[optionIndex] || []).concat(doc.id);
-    });
-
-    Object.entries(optionCounts).forEach(([index, count]) => {
-        const users = userNames[index].join(', ');
-        pollDetails.innerHTML += `<p>Option ${index + 1}: ${count} votes - ${users}</p>`;
-    });
-}
+document.getElementById('logoutBtn').onclick = () => {
+    auth.signOut().catch(error => console.error("Logout failed:", error));
+};
