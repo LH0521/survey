@@ -13,13 +13,16 @@ const db = firebase.firestore();
 // Authentication listener
 auth.onAuthStateChanged(user => {
     if (user) {
+        console.log("User is authenticated:", user.uid);
         showPollsPage();
         loadPolls();
     } else {
+        console.log("No authenticated user");
         showLandingPage();
         clearPolls();
     }
 });
+
 
 // Display functions
 function showLandingPage() {
@@ -86,11 +89,13 @@ async function vote(pollId, optionKey) {
             console.error("Poll not found");
             return;
         }
-        const pollData = pollDoc.data();
+
+        // Log existing poll data for debugging
+        console.log("Poll data before voting:", pollDoc.data());
 
         // Remove user from all options first
-        const updatePromises = Object.keys(pollData.options).map(async key => {
-            if (pollData.options[key].includes(user.uid)) {
+        const updatePromises = Object.keys(pollDoc.data().options).map(async key => {
+            if (pollDoc.data().options[key].includes(user.uid)) {
                 return pollRef.update({
                     [`options.${key}`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
                 });
@@ -103,9 +108,10 @@ async function vote(pollId, optionKey) {
             [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
         });
 
+        console.log("Vote successfully recorded for:", optionKey);
         updatePollProgress(pollId); // Update progress display after voting
     } catch (error) {
-        console.error("Error voting:", error);
+        console.error("Error voting:", error); // Captures any detailed error
     }
 }
 
