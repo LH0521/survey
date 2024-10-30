@@ -53,9 +53,9 @@ function createPollCard(id, data) {
     card.innerHTML = `
         <div class="card-body">
             <h5 class="card-title">${data.question}</h5>
-            ${data.options.map((option, index) => `
-                <button class="btn btn-outline-primary w-100 my-1" onclick="vote('${id}', ${index})">
-                    ${option} <span id="progress-${id}-${index}">0%</span>
+            ${Object.keys(data.options).map((optionKey) => `
+                <button class="btn btn-outline-primary w-100 my-1" onclick="vote('${id}', '${optionKey}')">
+                    ${optionKey} <span id="progress-${id}-${optionKey}">0%</span>
                 </button>
             `).join('')}
             <button class="btn btn-secondary w-100 mt-3" data-bs-toggle="modal" data-bs-target="#pollDetailModal" onclick="showPollDetails('${id}')">
