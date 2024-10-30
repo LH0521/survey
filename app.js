@@ -12,7 +12,7 @@ const db = firebase.firestore();
 
 document.getElementById('loginBtn').onclick = () => {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).then(showPollsPage);
+    auth.signInWithRedirect(provider);
 };
 
 document.getElementById('logoutBtn').onclick = () => {
@@ -39,21 +39,20 @@ function showPollsPage() {
     document.getElementById('pollsPage').style.display = 'block';
 }
 
-function clearPolls() {
-    const pollsContainer = document.getElementById('pollsContainer');
-    pollsContainer.innerHTML = '';
-}
-
 async function loadPolls() {
-    const pollsContainer = document.getElementById('pollsContainer');
-    pollsContainer.innerHTML = '';
+    clearPolls();
 
+    const pollsContainer = document.getElementById('pollsContainer');
     const pollsSnapshot = await db.collection('polls').get();
     pollsSnapshot.forEach(doc => {
         const pollData = doc.data();
         const pollCard = createPollCard(doc.id, pollData);
         pollsContainer.appendChild(pollCard);
     });
+}
+
+function clearPolls() {
+    document.getElementById('pollsContainer').innerHTML = '';
 }
 
 function createPollCard(id, data) {
