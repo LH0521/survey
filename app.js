@@ -66,39 +66,41 @@ function createPollCard(id, data) {
     return card;
 }
 
-async function vote(pollId, optionIndex) {
+async function vote(pollId, optionKey) {
     const user = auth.currentUser;
-    const userVoteRef = db.collection('polls').doc(pollId).collection('votes').doc(user.uid);
     const pollRef = db.collection('polls').doc(pollId);
 
-    const previousVote = await userVoteRef.get();
-    if (previousVote.exists && previousVote.data().optionIndex !== optionIndex) {
-        const previousIndex = previousVote.data().optionIndex;
-        await pollRef.update({
-            [`options.${previousIndex}.voters`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
-        });
+    const pollDoc = await pollRef.get();
+    const pollData = pollDoc.data();
+
+    for (const key in pollData.options) {
+        if (pollData.options[key].includes(user.uid)) {
+            await pollRef.update({
+                [`options.${key}`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
+            });
+        }
     }
 
-    await userVoteRef.set({ optionIndex });
     await pollRef.update({
-        [`options.${optionIndex}.voters`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
+        [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
     });
 
     updatePollProgress(pollId);
 }
 
+
 async function updatePollProgress(pollId) {
     const pollDoc = await db.collection('polls').doc(pollId).get();
     const pollData = pollDoc.data();
 
-    const totalVotes = pollData.options.reduce((sum, option) => sum + (option.voters ? option.voters.length : 0), 0);
+    const totalVotes = Object.values(pollData.options).reduce((sum, voters) => sum + voters.length, 0);
 
-    pollData.options.forEach((option, index) => {
-        const count = option.voters ? option.voters.length : 0;
-        const percentage = totalVotes ? (count / totalVotes * 100).toFixed(0) : 0;
-        document.getElementById(`progress-${pollId}-${index}`).innerText = `${percentage}%`;
-    });
+    for (const [key, voters] of Object.entries(pollData.options)) {
+        const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
+        document.getElementById(`progress-${pollId}-${key}`).innerText = `${percentage}%`;
+    }
 }
+
 
 async function showPollDetails(pollId) {
     const pollDetails = document.getElementById('pollDetails');
