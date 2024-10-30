@@ -20,8 +20,13 @@ document.getElementById('logoutBtn').onclick = () => {
 };
 
 auth.onAuthStateChanged(user => {
-    if (user) showPollsPage();
-    else showLandingPage();
+    if (user) {
+        showPollsPage();
+        loadPolls();
+    } else {
+        showLandingPage();
+        clearPolls();
+    }
 });
 
 function showLandingPage() {
@@ -32,7 +37,11 @@ function showLandingPage() {
 function showPollsPage() {
     document.getElementById('landingPage').style.display = 'none';
     document.getElementById('pollsPage').style.display = 'block';
-    loadPolls();
+}
+
+function clearPolls() {
+    const pollsContainer = document.getElementById('pollsContainer');
+    pollsContainer.innerHTML = '';
 }
 
 async function loadPolls() {
