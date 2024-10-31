@@ -53,18 +53,29 @@ function clearPolls() {
 
 function createPollCard(id, data, userId) {
     const card = document.createElement('div');
-    card.classList.add('card', 'mb-4', 'p-3', 'bg-white');
+    card.classList.add('d-flex', 'flex-column', 'gap-2', 'mb-4');
 
     const optionsHtml = Object.keys(data.options).map(optionKey => {
-        const isChecked = data.options[optionKey].includes(userId) ? 'checked' : ''; // Check if user voted for this option
+        const isChecked = data.options[optionKey].includes(userId) ? 'checked' : '';
         return `
-            <div class="d-flex align-items-center mb-2">
-                <input type="radio" name="poll-${id}" onclick="vote('${id}', '${optionKey}')" class="me-2" ${isChecked}>
-                <span class="me-2">${optionKey}</span>
-                <div class="progress w-50 me-2">
-                    <div id="progress-bar-${id}-${optionKey}" class="progress-bar" style="width: 0%;"></div>
+            <div class="d-flex align-items-center border rounded p-3">
+                <div class="me-3">
+                    <div class="icon icon-shape rounded-2 text-lg bg-indigo-500 text-white">
+                        <i class="ph ph-article"></i>
+                    </div>
                 </div>
-                <span id="progress-text-${id}-${optionKey}">0% (0 votes)</span>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-1">
+                            <input type="radio" name="poll-${id}" onclick="vote('${id}', '${optionKey}')" class="me-3" ${isChecked}>
+                            ${optionKey}
+                        </h6>
+                        <small id="progress-text-${id}-${optionKey}" class="text-muted">0% (0 Votes)</small>
+                    </div>
+                    <div class="progress mt-1" style="height: 5px;">
+                        <div id="progress-bar-${id}-${optionKey}" class="progress-bar bg-blue-500" role="progressbar" style="width: 0%;"></div>
+                    </div>
+                </div>
             </div>
         `;
     }).join('');
@@ -76,6 +87,30 @@ function createPollCard(id, data, userId) {
         </div>
     `;
     return card;
+}
+
+async function updatePollProgress(pollId) {
+    try {
+        const pollDoc = await db.collection('polls').doc(pollId).get();
+        if (!pollDoc.exists) {
+            console.error("Poll not found");
+            return;
+        }
+        const pollData = pollDoc.data();
+        const totalVotes = Object.values(pollData.options).reduce((sum, voters) => sum + voters.length, 0);
+
+        for (const [key, voters] of Object.entries(pollData.options)) {
+            const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
+            const progressBar = document.getElementById(`progress-bar-${pollId}-${key}`);
+            const progressText = document.getElementById(`progress-text-${pollId}-${key}`);
+            if (progressBar && progressText) {
+                progressBar.style.width = `${percentage}%`;
+                progressText.innerText = `${percentage}% (${voters.length} votes)`;
+            }
+        }
+    } catch (error) {
+        console.error("Error updating poll progress:", error);
+    }
 }
 
 async function vote(pollId, optionKey) {
@@ -111,31 +146,6 @@ async function vote(pollId, optionKey) {
         updatePollProgress(pollId); // Update progress display after voting
     } catch (error) {
         console.error("Error voting:", error);
-    }
-}
-
-async function updatePollProgress(pollId) {
-    try {
-        const pollDoc = await db.collection('polls').doc(pollId).get();
-        if (!pollDoc.exists) {
-            console.error("Poll not found");
-            return;
-        }
-        const pollData = pollDoc.data();
-        const totalVotes = Object.values(pollData.options).reduce((sum, voters) => sum + voters.length, 0);
-
-        for (const [key, voters] of Object.entries(pollData.options)) {
-            const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
-            const progressBar = document.getElementById(`progress-bar-${pollId}-${key}`);
-            const progressText = document.getElementById(`progress-text-${pollId}-${key}`);
-            if (progressBar && progressText) {
-                progressBar.style.width = `${percentage}%`;
-                progressBar.classList.add('bg-primary'); // Add Webpixels-compatible class for visibility
-                progressText.innerText = `${percentage}% (${voters.length} votes)`;
-            }
-        }
-    } catch (error) {
-        console.error("Error updating poll progress:", error);
     }
 }
 
