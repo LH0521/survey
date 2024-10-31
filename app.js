@@ -10,21 +10,16 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Authentication listener
 auth.onAuthStateChanged(user => {
     if (user) {
-        console.log("User is authenticated:", user.uid);
         showPollsPage();
         loadPolls();
     } else {
-        console.log("No authenticated user");
         showLandingPage();
         clearPolls();
     }
 });
 
-
-// Display functions
 function showLandingPage() {
     document.getElementById('landingPage').style.display = 'block';
     document.getElementById('pollsPage').style.display = 'none';
@@ -35,17 +30,17 @@ function showPollsPage() {
     document.getElementById('pollsPage').style.display = 'block';
 }
 
-// Load polls and clear polls functions
 async function loadPolls() {
-    clearPolls(); // Clear polls before loading
-
+    clearPolls();
     const pollsContainer = document.getElementById('pollsContainer');
+
     try {
         const pollsSnapshot = await db.collection('polls').get();
         pollsSnapshot.forEach(doc => {
             const pollData = doc.data();
             const pollCard = createPollCard(doc.id, pollData);
             pollsContainer.appendChild(pollCard);
+            updatePollProgress(doc.id); // Load stats immediately
         });
     } catch (error) {
         console.error("Error loading polls:", error);
@@ -56,24 +51,30 @@ function clearPolls() {
     document.getElementById('pollsContainer').innerHTML = '';
 }
 
-// Create poll card
 function createPollCard(id, data) {
     const card = document.createElement('div');
-    card.classList.add('card', 'mb-4');
+    card.classList.add('card', 'mb-4', 'p-3', 'bg-white');
+
+    const optionsHtml = Object.keys(data.options).map(optionKey => `
+        <div class="d-flex align-items-center mb-2">
+            <input type="radio" name="poll-${id}" onclick="vote('${id}', '${optionKey}')" class="me-2">
+            <span class="me-2">${optionKey}</span>
+            <div class="progress w-50 me-2">
+                <div id="progress-bar-${id}-${optionKey}" class="progress-bar" style="width: 0%;"></div>
+            </div>
+            <span id="progress-text-${id}-${optionKey}">0% (0 votes)</span>
+        </div>
+    `).join('');
+
     card.innerHTML = `
         <div class="card-body">
             <h5 class="card-title">${data.question}</h5>
-            ${Object.keys(data.options).map(optionKey => `
-                <button class="btn btn-outline-primary w-100 my-1" onclick="vote('${id}', '${optionKey}')">
-                    ${optionKey} <span id="progress-${id}-${optionKey}">0%</span>
-                </button>
-            `).join('')}
+            ${optionsHtml}
         </div>
     `;
     return card;
 }
 
-// Voting function
 async function vote(pollId, optionKey) {
     const user = auth.currentUser;
     if (!user) {
@@ -89,13 +90,10 @@ async function vote(pollId, optionKey) {
             console.error("Poll not found");
             return;
         }
+        const pollData = pollDoc.data();
 
-        // Log existing poll data for debugging
-        console.log("Poll data before voting:", pollDoc.data());
-
-        // Remove user from all options first
-        const updatePromises = Object.keys(pollDoc.data().options).map(async key => {
-            if (pollDoc.data().options[key].includes(user.uid)) {
+        const updatePromises = Object.keys(pollData.options).map(async key => {
+            if (pollData.options[key].includes(user.uid)) {
                 return pollRef.update({
                     [`options.${key}`]: firebase.firestore.FieldValue.arrayRemove(user.uid)
                 });
@@ -103,19 +101,16 @@ async function vote(pollId, optionKey) {
         });
         await Promise.all(updatePromises);
 
-        // Add user to the selected option
         await pollRef.update({
             [`options.${optionKey}`]: firebase.firestore.FieldValue.arrayUnion(user.uid)
         });
 
-        console.log("Vote successfully recorded for:", optionKey);
         updatePollProgress(pollId); // Update progress display after voting
     } catch (error) {
-        console.error("Error voting:", error); // Captures any detailed error
+        console.error("Error voting:", error);
     }
 }
 
-// Function to update poll progress
 async function updatePollProgress(pollId) {
     try {
         const pollDoc = await db.collection('polls').doc(pollId).get();
@@ -128,9 +123,11 @@ async function updatePollProgress(pollId) {
 
         for (const [key, voters] of Object.entries(pollData.options)) {
             const percentage = totalVotes ? (voters.length / totalVotes * 100).toFixed(0) : 0;
-            const progressElement = document.getElementById(`progress-${pollId}-${key}`);
-            if (progressElement) {
-                progressElement.innerText = `${percentage}%`;
+            const progressBar = document.getElementById(`progress-bar-${pollId}-${key}`);
+            const progressText = document.getElementById(`progress-text-${pollId}-${key}`);
+            if (progressBar && progressText) {
+                progressBar.style.width = `${percentage}%`;
+                progressText.innerText = `${percentage}% (${voters.length} votes)`;
             }
         }
     } catch (error) {
@@ -138,7 +135,6 @@ async function updatePollProgress(pollId) {
     }
 }
 
-// Login and logout functionality
 document.getElementById('loginBtn').onclick = () => {
     const provider = new firebase.auth.GoogleAuthProvider();
     auth.signInWithPopup(provider).catch(error => console.error("Login failed:", error));
