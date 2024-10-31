@@ -13,7 +13,7 @@ const db = firebase.firestore();
 auth.onAuthStateChanged(user => {
     if (user) {
         showPollsPage();
-        loadPolls();
+        loadPolls(user.uid); // Pass user ID to load selected option
     } else {
         showLandingPage();
         clearPolls();
@@ -30,7 +30,7 @@ function showPollsPage() {
     document.getElementById('pollsPage').style.display = 'block';
 }
 
-async function loadPolls() {
+async function loadPolls(userId) {
     clearPolls();
     const pollsContainer = document.getElementById('pollsContainer');
 
@@ -38,7 +38,7 @@ async function loadPolls() {
         const pollsSnapshot = await db.collection('polls').get();
         pollsSnapshot.forEach(doc => {
             const pollData = doc.data();
-            const pollCard = createPollCard(doc.id, pollData);
+            const pollCard = createPollCard(doc.id, pollData, userId); // Pass user ID to check selection
             pollsContainer.appendChild(pollCard);
             updatePollProgress(doc.id); // Load stats immediately
         });
@@ -51,20 +51,23 @@ function clearPolls() {
     document.getElementById('pollsContainer').innerHTML = '';
 }
 
-function createPollCard(id, data) {
+function createPollCard(id, data, userId) {
     const card = document.createElement('div');
     card.classList.add('card', 'mb-4', 'p-3', 'bg-white');
 
-    const optionsHtml = Object.keys(data.options).map(optionKey => `
-        <div class="d-flex align-items-center mb-2">
-            <input type="radio" name="poll-${id}" onclick="vote('${id}', '${optionKey}')" class="me-2">
-            <span class="me-2">${optionKey}</span>
-            <div class="progress w-50 me-2">
-                <div id="progress-bar-${id}-${optionKey}" class="progress-bar" style="width: 0%;"></div>
+    const optionsHtml = Object.keys(data.options).map(optionKey => {
+        const isChecked = data.options[optionKey].includes(userId) ? 'checked' : ''; // Check if user voted for this option
+        return `
+            <div class="d-flex align-items-center mb-2">
+                <input type="radio" name="poll-${id}" onclick="vote('${id}', '${optionKey}')" class="me-2" ${isChecked}>
+                <span class="me-2">${optionKey}</span>
+                <div class="progress w-50 me-2">
+                    <div id="progress-bar-${id}-${optionKey}" class="progress-bar" style="width: 0%;"></div>
+                </div>
+                <span id="progress-text-${id}-${optionKey}">0% (0 votes)</span>
             </div>
-            <span id="progress-text-${id}-${optionKey}">0% (0 votes)</span>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 
     card.innerHTML = `
         <div class="card-body">
@@ -127,6 +130,7 @@ async function updatePollProgress(pollId) {
             const progressText = document.getElementById(`progress-text-${pollId}-${key}`);
             if (progressBar && progressText) {
                 progressBar.style.width = `${percentage}%`;
+                progressBar.classList.add('bg-primary'); // Add Webpixels-compatible class for visibility
                 progressText.innerText = `${percentage}% (${voters.length} votes)`;
             }
         }
