@@ -58,7 +58,7 @@ function createPollCard(id, data, userId) {
     const optionsHtml = Object.keys(data.options).map(optionKey => {
         const isChecked = data.options[optionKey].includes(userId) ? 'checked' : '';
         return `
-            <div class="d-flex align-items-center border rounded p-3">
+            <div class="d-flex align-items-center p-3">
                 <div class="me-3">
                     <div class="icon icon-shape rounded-2 text-lg bg-indigo-500 text-white">
                         <i class="ph ph-article"></i>
