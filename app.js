@@ -81,9 +81,11 @@ function createPollCard(id, data, userId) {
     }).join('');
 
     card.innerHTML = `
-        <div class="card-body">
-            <h5 class="card-title">${data.question}</h5>
-            ${optionsHtml}
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">${data.question}</h5>
+                ${optionsHtml}
+            </div>
         </div>
     `;
     return card;
